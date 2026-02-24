@@ -1,0 +1,5 @@
+perintah windows
+./tailwindcss.exe -i input.css -o assets/style.css --watch
+
+perintah Linux
+./tailwindcss -i input.css -o assets/style.css --watch
