@@ -1,61 +1,66 @@
 <?php
+session_start(); // Pastikan sesi dimulai di awal skrip
 
-if (!isset($pageTitle)) {
-    $pageTitle = "Aplikasi Kasir";
-}
+// Ambil nilai dari sesi, berikan nilai default jika tidak ada
+$nama_tampil = $_SESSION['nama'] ?? 'Guest';
+$role_tampil = $_SESSION['role'] ?? '';
 
+// Pastikan semua output ke HTML di-escape
+$nama_tampil_escaped = htmlspecialchars($nama_tampil, ENT_QUOTES, 'UTF-8');
+$role_tampil_escaped = htmlspecialchars($role_tampil, ENT_QUOTES, 'UTF-8');
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-
-$nama_tampil = isset($_SESSION['nama']) ? $_SESSION['nama'] : 'Guest';
-
-
-$role_tampil = isset($_SESSION['role']) ? ucfirst($_SESSION['role']) : 'Petugas';
-
-
-$huruf_avatar = strtoupper(substr($nama_tampil, 0, 1));
 ?>
-
-<header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 flex-shrink-0 z-10">
-    
-    <div class="flex items-center flex-1">
-        <h2 class="text-xl font-bold text-gray-700 mr-8 tracking-tight">
-            <?= $pageTitle ?>
-        </h2>
+<nav class="navbar">
+    <div class="navbar-brand">Aplikasi Kasir</div>
+    <ul class="navbar-nav">
+        <li class="nav-item"><a href="/" class="nav-link">Home</a></li>
+        <?php if (isset($_SESSION['user_id'])): // Asumsi ada user_id di sesi untuk menandakan login ?>
+            <li class="nav-item"><a href="/dashboard.php" class="nav-link">Dashboard</a></li>
+            <?php if ($role_tampil_escaped === 'admin'): // Contoh menu khusus admin ?>
+                <li class="nav-item"><a href="/admin/admin.php" class="nav-link">Admin Panel</a></li>
+            <?php endif; ?>
+            <li class="nav-item"><a href="/logout.php" class="nav-link">Logout</a></li>
+        <?php else: ?>
+            <li class="nav-item"><a href="/login.php" class="nav-link">Login</a></li>
+            <li class="nav-item"><a href="/register.php" class="nav-link">Register</a></li>
+        <?php endif; ?>
+    </ul>
+    <div class="navbar-info">
+        <span>Welcome, <strong><?= $nama_tampil_escaped ?></strong> (<?= $role_tampil_escaped ?>)</span>
     </div>
+</nav>
 
-    <div class="flex items-center space-x-4">
-        
-        <div id="realtime-clock" class="text-sm font-bold text-gray-500 hidden sm:block bg-gray-50 px-3 py-1 rounded-md border border-gray-200">
-            00:00:00
-        </div>
-
-    
-
-        <div class="h-6 w-px bg-gray-300 mx-2"></div>
-
-        <div class="flex items-center cursor-pointer">
-            <div class="text-right mr-3 hidden sm:block">
-                <div class="text-sm font-bold text-gray-800"><?= $nama_tampil ?></div>
-                <div class="text-xs text-gray-500"><?= $role_tampil ?></div>
-            </div>
-            
-            <div class="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold shadow-sm border-2 border-white ring-2 ring-gray-100">
-                <?= $huruf_avatar ?>
-            </div>
-        </div>
-    </div>
-</header>
-
-<script>
-    function updateClock() {
-        const now = new Date();
-        const options = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
-        document.getElementById('realtime-clock').innerText = now.toLocaleTimeString('id-ID', options);
+<style>
+    /* Contoh styling sederhana untuk navbar */
+    .navbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background-color: #333;
+        color: white;
+        padding: 10px 20px;
     }
-    setInterval(updateClock, 1000);
-    updateClock(); 
-</script>
+    .navbar-brand {
+        font-weight: bold;
+        font-size: 1.2em;
+    }
+    .navbar-nav {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+    }
+    .nav-item {
+        margin-left: 15px;
+    }
+    .nav-link {
+        color: white;
+        text-decoration: none;
+    }
+    .nav-link:hover {
+        text-decoration: underline;
+    }
+    .navbar-info {
+        font-size: 0.9em;
+    }
+</style>
