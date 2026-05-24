@@ -1,103 +1,51 @@
 <?php
-include '../config/koneksi.php';
-include '../components/auth_check.php'; 
+include '../config/koneksi.php'; // Asumsi file koneksi.php berada satu tingkat di atas
 
-
+// Validasi input ID
+if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+    die("ID transaksi tidak valid.");
+}
 $id = $_GET['id'];
 
+// --- Query untuk data transaksi utama ---
+$stmt_transaksi = mysqli_prepare($koneksi, "SELECT * FROM transaksi WHERE id = ?");
+if ($stmt_transaksi === false) {
+    die("Error preparing statement for transaksi: " . mysqli_error($koneksi));
+}
+mysqli_stmt_bind_param($stmt_transaksi, "i", $id); // 'i' menandakan integer
+mysqli_stmt_execute($stmt_transaksi);
+$result_transaksi = mysqli_stmt_get_result($stmt_transaksi);
+$transaksi = mysqli_fetch_assoc($result_transaksi);
+mysqli_stmt_close($stmt_transaksi);
 
-$query = mysqli_query($koneksi, "SELECT * FROM transaksi WHERE id = '$id'");
-$trx   = mysqli_fetch_assoc($query);
+// Jika transaksi tidak ditemukan, mungkin tampilkan pesan error atau redirect
+if (!$transaksi) {
+    die("Transaksi tidak ditemukan.");
+}
 
+// --- Query untuk detail transaksi ---
+$stmt_detail = mysqli_prepare($koneksi, "SELECT d.*, b.nama_barang, b.harga FROM detail_transaksi d JOIN barang b ON d.id_barang = b.id WHERE d.id_transaksi = ?");
+if ($stmt_detail === false) {
+    die("Error preparing statement for detail: " . mysqli_error($koneksi));
+}
+mysqli_stmt_bind_param($stmt_detail, "i", $id); // 'i' menandakan integer
+mysqli_stmt_execute($stmt_detail);
+$result_detail = mysqli_stmt_get_result($stmt_detail);
+// Anda dapat mengulang $result_detail untuk menampilkan detail barang
 
-$id_user = $trx['id_user'];
-$qUser   = mysqli_query($koneksi, "SELECT nama_lengkap FROM users WHERE id='$id_user'");
-$dUser   = mysqli_fetch_assoc($qUser);
-$nama_kasir = $dUser['nama_lengkap'] ?? 'Admin';
+// Contoh penggunaan (asumsi ada bagian HTML untuk menampilkan data)
+// echo "<h1>Struk Transaksi #" . htmlspecialchars($transaksi['id']) . "</h1>";
+// echo "<p>Tanggal: " . htmlspecialchars($transaksi['tanggal']) . "</p>";
+// echo "<p>Total: " . htmlspecialchars($transaksi['total']) . "</p>
+// echo "<h2>Detail Barang:</h2>";
+// echo "<ul>";
+// while ($row_detail = mysqli_fetch_assoc($result_detail)) {
+//     echo "<li>" . htmlspecialchars($row_detail['nama_barang']) . " - " . htmlspecialchars($row_detail['jumlah']) . " x " . htmlspecialchars($row_detail['harga']) . "</li>";
+// }
+// echo "</ul>";
 
+mysqli_stmt_close($stmt_detail);
+
+// Pastikan untuk menutup koneksi database di akhir skrip atau saat tidak lagi dibutuhkan
+// mysqli_close($koneksi);
 ?>
-
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Struk #<?= $id ?></title>
-    <style>
-        body { font-family: 'Courier New', Courier, monospace; font-size: 12px; max-width: 300px; margin: 0 auto; color: #000; }
-        .header { text-align: center; margin-bottom: 10px; border-bottom: 1px dashed #000; padding-bottom: 5px; }
-        .info { margin-bottom: 10px; }
-        .item { display: flex; justify-content: space-between; margin-bottom: 3px; }
-        .total-section { border-top: 1px dashed #000; margin-top: 10px; padding-top: 5px; }
-        .footer { text-align: center; margin-top: 15px; font-size: 10px; }
-        .btn-print { margin-top: 20px; display: block; width: 100%; padding: 10px; background: #000; color: #fff; text-align: center; text-decoration: none; font-weight: bold; cursor: pointer; }
-        
-        @media print {
-            .btn-print, .no-print { display: none; }
-            body { margin: 0; padding: 0; }
-        }
-    </style>
-</head>
-<body onload="window.print()">
-
-    <div class="header">
-        <h2 style="margin:0;">Toko Dean Super</h2>
-        <p style="margin:2px;">JL. SUGIHWARAS NO. 45, PEMALANG</p>
-        <p style="margin:0;">NPWP: 01.234.567.8-000</p>
-    </div>
-
-    <div class="info">
-        <div>Bon: <?= str_pad($id, 6, '0', STR_PAD_LEFT) ?></div>
-        <div>Kasir: <?= $nama_kasir ?></div>
-        <div><?= date('d.m.y - H:i', strtotime($trx['tgl_transaksi'])) ?></div>
-    </div>
-
-    <div style="border-bottom: 1px dashed #000; margin-bottom: 5px;"></div>
-
-    <?php
-    $qDetail = mysqli_query($koneksi, "SELECT d.*, b.nama_barang 
-                                       FROM detail_transaksi d 
-                                       JOIN barang b ON d.id_barang = b.id 
-                                       WHERE d.id_transaksi = '$id'");
-    while ($item = mysqli_fetch_assoc($qDetail)) {
-    ?>
-    <div style="margin-bottom: 5px;">
-        <div style="font-weight:bold;"><?= strtoupper($item['nama_barang']) ?></div>
-        <div class="item">
-            <span><?= $item['qty'] ?> x <?= number_format($item['subtotal'] / $item['qty'], 0, ',', '.') ?></span>
-            <span><?= number_format($item['subtotal'], 0, ',', '.') ?></span>
-        </div>
-    </div>
-    <?php } ?>
-    
-    <div class="total-section">
-        <div class="item" style="font-weight: bold; font-size: 14px;">
-            <span>Total :</span>
-            <span><?= number_format($trx['total_bayar'], 0, ',', '.') ?></span>
-        </div>
-        
-        <div class="item">
-            <span>Tunai :</span>
-            <span><?= number_format($trx['bayar'], 0, ',', '.') ?></span>
-        </div>
-        <div class="item">
-            <span>Kembali :</span>
-            <span><?= number_format($trx['kembalian'], 0, ',', '.') ?></span>
-        </div>
-    </div>
-
-    <div style="text-align: center; margin-top: 10px;">
-        PPN TERMASUK<br>
-        LAYANAN KONSUMEN SMS:<br>
-        0896-6564-0209
-    </div>
-
-    <div class="footer">
-        *** TERIMA KASIH ***<br>
-        SELAMAT BELANJA KEMBALI
-    </div>
-
-    <a href="index.php" class="btn-print">KEMBALI KE KASIR</a>
-
-</body>
-</html>
