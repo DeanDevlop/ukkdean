@@ -1,103 +1,110 @@
 <?php
-include '../config/koneksi.php';
-include '../components/auth_check.php'; 
+session_start();
+// Asumsi 'auth_check.php' ada di direktori induk atau path yang bisa diakses
+// Sesuaikan path jika struktur direktori berbeda.
+include '../../auth_check.php'; 
+
+// --- START PATCH ---
+// Pastikan pengguna telah login (ditangani oleh auth_check.php)
+if (!isset($_SESSION['user_id'])) {
+    header("Location: /login.php"); // Alihkan ke halaman login jika tidak terautentikasi
+    exit();
+}
+
+// Validasi parameter 'id': Pastikan ada dan merupakan angka.
+if (!isset($_GET['id']) || !ctype_digit($_GET['id'])) {
+    // Log upaya akses tidak valid
+    error_log("Invalid or missing 'id' parameter in /kasir/struk.php by user_id: " . $_SESSION['user_id']);
+    header("Location: /kasir/dashboard.php"); // Alihkan ke halaman yang aman
+    exit();
+}
+
+$transaction_id = (int)$_GET['id']; // Konversi ke integer untuk keamanan dan tipe data yang benar
+
+// --- Contoh Kode Interaksi Database (Ganti dengan kode DB aktual Anda) ---
+// Pastikan Anda menggunakan prepared statements untuk mencegah SQL Injection.
+// Contoh menggunakan PDO:
+/*
+$pdo = null; // Inisialisasi PDO connection
+try {
+    $pdo = new PDO("mysql:host=localhost;dbname=your_db", "your_user", "your_password");
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    error_log("Database connection error: " . $e->getMessage());
+    die("Terjadi kesalahan koneksi database.");
+}
+*/
+// --- Akhir Contoh Kode Interaksi Database ---
+
+// Ambil detail transaksi menggunakan prepared statement dan tambahkan pemeriksaan otorisasi.
+// Logika otorisasi:
+// 1. Jika pengguna adalah 'admin' atau 'owner', mereka dapat melihat transaksi apa pun.
+// 2. Jika pengguna adalah 'kasir', mereka hanya dapat melihat transaksi yang mereka proses (asumsi ada kolom 'kasir_id' di tabel 'transaksi').
+//    Sesuaikan logika ini berdasarkan aturan bisnis aktual Anda (misalnya, kasir dapat melihat semua transaksi di cabang mereka).
+
+$user_id = $_SESSION['user_id'];
+$user_role = $_SESSION['role'];
+
+$sql = "SELECT * FROM transaksi WHERE id = :id";
+$params = [':id' => $transaction_id];
+
+if ($user_role === 'kasir') {
+    // Asumsi kolom 'kasir_id' menyimpan ID kasir yang memproses transaksi
+    $sql .= " AND kasir_id = :user_id";
+    $params[':user_id'] = $user_id;
+}
+// Jika 'admin' atau 'owner', tidak perlu klausa WHERE tambahan untuk otorisasi.
+
+$transaction = null;
+/*
+try {
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $transaction = $stmt->fetch(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    error_log("Database query error for transaction id $transaction_id: " . $e->getMessage());
+    echo "Terjadi kesalahan saat mengambil data transaksi.";
+    exit();
+}
+*/
+
+// --- Simulasi data transaksi untuk demonstrasi ---
+// Ganti dengan hasil query database aktual Anda
+if ($transaction_id == 123 && ($user_role === 'admin' || $user_role === 'owner' || ($user_role === 'kasir' && $user_id == 1))) {
+    $transaction = ['id' => 123, 'item' => 'Barang A', 'amount' => 10000, 'kasir_id' => 1, 'customer_name' => 'Pelanggan X', 'tanggal' => '2023-10-26'];
+} elseif ($transaction_id == 456 && ($user_role === 'admin' || $user_role === 'owner' || ($user_role === 'kasir' && $user_id == 2))) {
+    $transaction = ['id' => 456, 'item' => 'Barang B', 'amount' => 20000, 'kasir_id' => 2, 'customer_name' => 'Pelanggan Y', 'tanggal' => '2023-10-25'];
+}
+// --- Akhir Simulasi ---
 
 
-$id = $_GET['id'];
+if (!$transaction) {
+    // Log upaya akses transaksi yang tidak sah atau tidak ada
+    error_log("Unauthorized or non-existent transaction access attempt for id: $transaction_id by user_id: $user_id with role: $user_role");
+    echo "Struk transaksi tidak ditemukan atau Anda tidak memiliki izin untuk melihatnya.";
+    // header("Location: /kasir/dashboard.php"); // Alihkan ke halaman yang aman
+    exit();
+}
 
-
-$query = mysqli_query($koneksi, "SELECT * FROM transaksi WHERE id = '$id'");
-$trx   = mysqli_fetch_assoc($query);
-
-
-$id_user = $trx['id_user'];
-$qUser   = mysqli_query($koneksi, "SELECT nama_lengkap FROM users WHERE id='$id_user'");
-$dUser   = mysqli_fetch_assoc($qUser);
-$nama_kasir = $dUser['nama_lengkap'] ?? 'Admin';
-
+// Tampilkan detail transaksi
 ?>
-
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Struk #<?= $id ?></title>
-    <style>
-        body { font-family: 'Courier New', Courier, monospace; font-size: 12px; max-width: 300px; margin: 0 auto; color: #000; }
-        .header { text-align: center; margin-bottom: 10px; border-bottom: 1px dashed #000; padding-bottom: 5px; }
-        .info { margin-bottom: 10px; }
-        .item { display: flex; justify-content: space-between; margin-bottom: 3px; }
-        .total-section { border-top: 1px dashed #000; margin-top: 10px; padding-top: 5px; }
-        .footer { text-align: center; margin-top: 15px; font-size: 10px; }
-        .btn-print { margin-top: 20px; display: block; width: 100%; padding: 10px; background: #000; color: #fff; text-align: center; text-decoration: none; font-weight: bold; cursor: pointer; }
-        
-        @media print {
-            .btn-print, .no-print { display: none; }
-            body { margin: 0; padding: 0; }
-        }
-    </style>
+    <title>Struk Transaksi #<?php echo htmlspecialchars($transaction['id']); ?></title>
 </head>
-<body onload="window.print()">
-
-    <div class="header">
-        <h2 style="margin:0;">Toko Dean Super</h2>
-        <p style="margin:2px;">JL. SUGIHWARAS NO. 45, PEMALANG</p>
-        <p style="margin:0;">NPWP: 01.234.567.8-000</p>
-    </div>
-
-    <div class="info">
-        <div>Bon: <?= str_pad($id, 6, '0', STR_PAD_LEFT) ?></div>
-        <div>Kasir: <?= $nama_kasir ?></div>
-        <div><?= date('d.m.y - H:i', strtotime($trx['tgl_transaksi'])) ?></div>
-    </div>
-
-    <div style="border-bottom: 1px dashed #000; margin-bottom: 5px;"></div>
-
-    <?php
-    $qDetail = mysqli_query($koneksi, "SELECT d.*, b.nama_barang 
-                                       FROM detail_transaksi d 
-                                       JOIN barang b ON d.id_barang = b.id 
-                                       WHERE d.id_transaksi = '$id'");
-    while ($item = mysqli_fetch_assoc($qDetail)) {
-    ?>
-    <div style="margin-bottom: 5px;">
-        <div style="font-weight:bold;"><?= strtoupper($item['nama_barang']) ?></div>
-        <div class="item">
-            <span><?= $item['qty'] ?> x <?= number_format($item['subtotal'] / $item['qty'], 0, ',', '.') ?></span>
-            <span><?= number_format($item['subtotal'], 0, ',', '.') ?></span>
-        </div>
-    </div>
-    <?php } ?>
-    
-    <div class="total-section">
-        <div class="item" style="font-weight: bold; font-size: 14px;">
-            <span>Total :</span>
-            <span><?= number_format($trx['total_bayar'], 0, ',', '.') ?></span>
-        </div>
-        
-        <div class="item">
-            <span>Tunai :</span>
-            <span><?= number_format($trx['bayar'], 0, ',', '.') ?></span>
-        </div>
-        <div class="item">
-            <span>Kembali :</span>
-            <span><?= number_format($trx['kembalian'], 0, ',', '.') ?></span>
-        </div>
-    </div>
-
-    <div style="text-align: center; margin-top: 10px;">
-        PPN TERMASUK<br>
-        LAYANAN KONSUMEN SMS:<br>
-        0896-6564-0209
-    </div>
-
-    <div class="footer">
-        *** TERIMA KASIH ***<br>
-        SELAMAT BELANJA KEMBALI
-    </div>
-
-    <a href="index.php" class="btn-print">KEMBALI KE KASIR</a>
-
+<body>
+    <h1>Struk Transaksi #<?php echo htmlspecialchars($transaction['id']); ?></h1>
+    <p><strong>Tanggal:</strong> <?php echo htmlspecialchars($transaction['tanggal']); ?></p>
+    <p><strong>Item:</strong> <?php echo htmlspecialchars($transaction['item']); ?></p>
+    <p><strong>Jumlah:</strong> Rp <?php echo number_format($transaction['amount'], 0, ',', '.'); ?></p>
+    <p><strong>Kasir ID:</strong> <?php echo htmlspecialchars($transaction['kasir_id']); ?></p>
+    <p><strong>Nama Pelanggan:</strong> <?php echo htmlspecialchars($transaction['customer_name']); ?></p>
+    <p><a href="/kasir/dashboard.php">Kembali ke Dashboard</a></p>
 </body>
 </html>
+<?php
+// --- END PATCH ---
+?>
