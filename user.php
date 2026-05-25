@@ -1,58 +1,39 @@
 <?php
+// user.php
+// Pastikan koneksi database sudah diinisialisasi, contoh: $pdo = new PDO(...);
 
-$conn = mysqli_connect("localhost", "root", "", "db_kasir");
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Sanitasi dan validasi input
+    $username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_STRING);
+    $password_raw = filter_input(INPUT_POST, 'password', FILTER_UNSAFE_RAW); // Ambil password mentah untuk hashing
 
-if (!$conn) {
-    die("Koneksi gagal: " . mysqli_connect_error());
-}
-
-
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $username = mysqli_real_escape_string($conn, $_POST['username']);
-    $password = $_POST['password'];
-    $nama_lengkap = mysqli_real_escape_string($conn, $_POST['nama_lengkap']);
-    $role     = $_POST['role'];
-    $created_at = date('Y-m-d H:i:s');
-    $last_login = date('Y-m-d H:i:s');
-
-    $password_hashed = password_hash($password, PASSWORD_DEFAULT);
-
-    $sql = "INSERT INTO users (username, password, role, nama_lengkap, created_at, last_login) 
-            VALUES ('$username', '$password_hashed', '$role','$nama_lengkap', '$created_at', '$last_login')";
-
-    if (mysqli_query($conn, $sql)) {
-        echo "<script>alert('Akun berhasil dibuat!');</script>";
-    } else {
-        echo "Error: " . mysqli_error($conn);
+    if (empty($username) || empty($password_raw)) {
+        http_response_code(400);
+        die("Nama pengguna dan kata sandi wajib diisi.");
     }
+
+    $password_hashed = password_hash($password_raw, PASSWORD_DEFAULT);
+    
+    // PERBAIKAN KRITIS: Jangan ambil 'role' dari input pengguna untuk pendaftaran publik.
+    // Tetapkan peran default yang tidak memiliki hak istimewa.
+    $role = 'user'; // Hardcode peran default
+
+    try {
+        $stmt = $pdo->prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)");
+        $stmt->execute([$username, $password_hashed, $role]);
+        http_response_code(201);
+        echo "Pengguna berhasil dibuat dengan peran: " . htmlspecialchars($role);
+    } catch (PDOException $e) {
+        // Catat kesalahan dan berikan pesan generik
+        error_log("Kesalahan database saat membuat pengguna: " . $e->getMessage());
+        http_response_code(500);
+        echo "Terjadi kesalahan saat membuat pengguna. Silakan coba lagi.";
+    }
+} else {
+    // Opsional: Tampilkan formulir untuk permintaan GET
+    // header('Content-Type: text/html');
+    // echo "<form method='POST'>...<input type='text' name='username'>...<input type='password' name='password'>...<button type='submit'>Daftar</button></form>";
+    http_response_code(405);
+    echo "Metode tidak diizinkan.";
 }
 ?>
-
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Buat Akun Kasir</title>
-</head>
-<body>
-    <h2>Form Pendaftaran User</h2>
-    <form method="POST" action="">
-        <label>Nama Lengkap:</label><br>
-        <input type="text" name="nama_lengkap" required><br><br>
-
-        <label>Username:</label><br>
-        <input type="text" name="username" required><br><br>
-
-        <label>Password:</label><br>
-        <input type="password" name="password" required><br><br>
-
-        <label>Role:</label><br>
-        <select name="role">
-            <option value="admin">Admin</option>
-            <option value="kasir">Kasir</option>
-              <option value="kasir">Owner</option>
-        </select><br><br>
-
-        <button type="submit">Daftar Akun</button>
-    </form>
-</body>
-</html>
